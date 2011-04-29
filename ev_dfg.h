@@ -42,6 +42,20 @@ extern void EVdfg_add_action (EVdfg_stone stone, char *action_spec);
 extern EVdfg_stone EVdfg_create_source_stone(EVdfg, char *source_name);
 extern EVdfg_stone EVdfg_create_sink_stone(EVdfg dfg, char *handler_name);
 
+/*
+  pprabhu:
+*/
+
+extern void EVdfg_reconfig_insert(EVdfg dfg, int src_stone_id, EVdfg_stone new_stone, int dest_stone_id, EVevent_list q_event);
+extern void EVdfg_reconfig_delete_link(EVdfg dfg, int src_index, int dest_index);
+extern void REVdfg_freeze_next_bridge_stone(EVdfg dfg, int stone_index);
+extern void EVdfg_freeze_next_bridge_stone(EVdfg dfg, int stone_index);
+extern void EVdfg_reconfig_link_port_to_stone(EVdfg dfg, int src_stone_index, int port, EVdfg_stone target_stone, EVevent_list q_events);
+extern void EVdfg_reconfig_link_port_from_stone(EVdfg dfg, EVdfg_stone src_stone, int port, int target_index, EVevent_list q_events);
+extern void EVdfg_reconfig_link_port(EVdfg_stone src, int port, EVdfg_stone dest, EVevent_list q_events);
+extern void EVdfg_reconfig_transfer_events(EVdfg dfg, int src_stone_index, int src_port, int dest_stone_index, int dest_port);
+
+
 extern void EVdfg_link_port(EVdfg_stone source, int source_port, 
 			    EVdfg_stone destination);
 extern void EVdfg_set_attr_list(EVdfg_stone stone, attr_list attrs);

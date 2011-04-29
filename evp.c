@@ -2116,6 +2116,10 @@ INT_EVaction_add_split_target(CManager cm, EVstone stone_num,
 	printf("Not split action\n");
 	return 0;
     }
+    if ((new_stone_target & 0x80000000) == 0x80000000) {
+	new_stone_target = lookup_local_stone(evp, new_stone_target);
+    }
+
     target_stone_list = stone->proto_actions[action_num].o.split_stone_targets;
     while (target_stone_list && (target_stone_list[target_count] != -1)) {
 	target_count++;
@@ -2169,6 +2173,10 @@ INT_EVaction_remove_split_target(CManager cm, EVstone stone_num,
     stone = stone_struct(evp, stone_num);
     if (!stone) return;
 
+    if ((stone_target & 0x80000000) == 0x80000000) {
+	stone_target = lookup_local_stone(evp, stone_target);
+    }
+
     if (stone->proto_actions[action_num].action_type != Action_Split ) {
 	printf("Not split action\n");
     }
@@ -2195,14 +2203,19 @@ INT_EVstone_remove_split_target(CManager cm, EVstone stone_num, EVstone stone_ta
     stone = stone_struct(evp, stone_num);
     if (!stone) return;
 
+    if ((stone_target & 0x80000000) == 0x80000000) {
+	stone_target = lookup_local_stone(evp, stone_target);
+    }
+
     for (action_num = 0; action_num < stone->proto_action_count; action_num ++) {
-	if (stone->proto_actions[action_num].action_type != Action_Split ) {
+	if (stone->proto_actions[action_num].action_type == Action_Split ) {
 	    EVstone *target_stone_list;
 	    int target_count = 0;
 
 	    target_stone_list = stone->proto_actions[action_num].o.split_stone_targets;
 	    if (!target_stone_list) return;
 	    while (target_stone_list[target_count] != stone_target) {
+	        if (target_stone_list[target_count] == -1) return;
 		target_count++;
 	    }
 	    while (target_stone_list[target_count+1] != -1 ) {

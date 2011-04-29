@@ -7,9 +7,21 @@
 #include "ev_dfg.h"
 #include "test_support.h"
 
+CManager cm;
+
 static int status;
-static EVdfg test_dfg;
+static EVdfg dfg;
 static int base=2;
+static int nbase = 2;
+static int level_count = 3;
+
+static EVdfg_stone *tmp;
+static EVdfg_stone *last;
+
+const int reconfig_node_count = 6;
+
+char *str_contact;
+char **reconfig_list = NULL;
 
 static
 int
@@ -18,128 +30,188 @@ simple_handler(CManager cm, void *vevent, void *client_data, attr_list attrs)
     simple_rec_ptr event = vevent;
     (void)cm;
     (void)client_data;
+    static int count;
     checksum_simple_record(event, attrs, quiet);
-    EVdfg_shutdown(test_dfg, 0);
+    if (++count == 300) {
+      EVdfg_shutdown(dfg, 0);
+    }
+    printf("\nStatic configuration working, ready for reconfiguration! All the best!\n");
+    fflush(stdout);
     return 0;
+}
+
+
+/* ****** Algorithm ******
+
+  - The initial tree will consist of two nodes, root and one child
+
+  - First child freezes the dataflow and deletes the link between the root and it's only child
+  - First child then forks n number of children which will now attempt to join the dfg
+  - First child does not call realize, dataflow is frozen
+
+  - Every node joining in creates stones and links them appropriately
+  - According to the number of the node joining in, it will either be an intermediate node or a leaf node
+  - Leaf nodes will have terminal actions associated with them and intermidate nodes will have split actions (as of now)
+  - When appropriate number of nodes have joined in, the graph is realized
+  - The above three points can be implemented by basically unrolling the loops in the static tree_test code
+
+  - Timing measurements can be made by starting the timer in the node_register_handler only when the 2nd node for reconfiguration joins in
+  - The timer will be stopped when the graph has been realized, mostly inside node_register_handler
+
+   ****** ********* ****** */
+
+static void
+join_handler(EVdfg dfg, char *identifier, void* available_sources, void *available_sinks) {
+
+  static int joined_node_count;
+  static int i = 2;
+  static int j;
+  static int k;
+
+  char *thandle;
+  static char *canon_name;
+
+  if (strcmp(identifier, "origin") == 0) {
+    EVdfg_stone terminal = NULL;
+
+    canon_name = strdup("origin");
+    EVdfg_assign_canonical_name(dfg, identifier, canon_name);
+
+    EVdfg_register_sink_handler(cm, "thandler", simple_format_list, (EVSimpleHandlerFunc) simple_handler);
+    terminal = EVdfg_create_sink_stone(dfg, "thandler");
+
+    EVdfg_link_port(last[0], 0, terminal);
+    EVdfg_assign_node(last[0], "origin");
+    EVdfg_assign_node(terminal, "origin");
+
+    ++joined_node_count;
+    EVdfg_realize(dfg);
+  }
+  else {
+    if (joined_node_count == 1) {
+//      EVdfg_reconfig_delete_link(dfg, 0, 1);
+
+      canon_name = malloc(20 * sizeof(char));
+      ++joined_node_count;
+
+      delayed_fork_children(cm, &reconfig_list[0], str_contact, 5);
+    }
+    else {
+      if (i < level_count) {
+//        if (j < nbase) {
+          tmp[j] = EVdfg_create_stone(dfg, NULL);
+
+	  sprintf(canon_name, "client%d", joined_node_count);
+	  EVdfg_assign_canonical_name(dfg, identifier, canon_name);
+	  EVdfg_assign_node(tmp[j], canon_name);
+
+	  EVdfg_reconfig_link_port(last[j / base], j % base, tmp[j], NULL);
+
+	  ++joined_node_count;
+          ++j;
+//        }
+        if (j >= nbase) {
+          for (j = 0; j < nbase; ++j) {
+            last[j] = tmp[j];
+          }
+          nbase *= base;
+	  j = 0;
+          ++i;
+        }
+      }
+      else {
+	thandle = strdup("thandler");
+//	sprintf(thandle, "thandler%d", joined_node_count);
+	EVdfg_register_sink_handler(cm, thandle, simple_format_list, (EVSimpleHandlerFunc) simple_handler);
+	tmp[k] = EVdfg_create_sink_stone(dfg, thandle);
+
+	sprintf(canon_name, "terminal_node%d", joined_node_count);
+	EVdfg_assign_canonical_name(dfg, identifier, canon_name);
+	EVdfg_assign_node(tmp[k], canon_name);
+
+	EVdfg_reconfig_link_port(last[k / base], k % base, tmp[k], NULL);
+
+	++k;
+	++joined_node_count;
+	if (k >= nbase) {
+          EVdfg_realize(dfg);
+	}
+      }
+    }
+  }
 }
 
 
 extern int
 be_test_master(int argc, char **argv)
 {
-    char **nodes;
-    CManager cm;
-    attr_list contact_list;
-    char *str_contact;
-    char *chandle;
-    EVdfg_stone *last, *tmp;
-    EVsource source_handle;
-    int level_count = 3, node_count, last_row_size;
-    int ndig;
-    int i,j,nbase,n;
-    int fanout=1;
+  attr_list contact_list;
+  EVsource source_handle;
+  int last_row_size;
+  int i;
+  char **nodes;
 
-    if (argc == 1) {
-	sscanf(argv[0], "%d", &level_count);
+  nodes = malloc(2 * sizeof(nodes[0]));
+
+  nodes[0] = strdup("origin");
+  nodes[1] = NULL;
+
+  last_row_size = (int) pow(base, level_count - 1);
+
+  tmp = malloc(last_row_size * sizeof(EVdfg_stone));
+  last = malloc(last_row_size * sizeof(EVdfg_stone));
+
+  cm = CManager_create();
+  CMlisten(cm);
+  contact_list = CMget_contact_list(cm);
+  str_contact = attr_list_to_string(contact_list);
+
+  printf("\nMaster's contact = %s\n", str_contact);
+  fflush(stdout);
+
+  source_handle = EVcreate_submit_handle(cm, -1 ,simple_format_list);
+  EVdfg_register_source("master_source", source_handle);
+
+  dfg = EVdfg_create(cm);
+  EVdfg_node_join_handler(dfg, join_handler);;
+
+  last[0] = EVdfg_create_source_stone(dfg, "master_source");
+
+/* pprabhu: creating list of reconfiguration node names */
+    reconfig_list = malloc(sizeof(reconfig_list[0]) * (reconfig_node_count + 2));
+    for (i=0; i < (reconfig_node_count + 1); i++) {
+        reconfig_list[i] = strdup("client");
     }
-    node_count = (int) pow(base,level_count) -1;
-    last_row_size = (int)pow(base,level_count - 1);
-    ndig = (int) (level_count*log10((double)base)) +1;
+    reconfig_list[reconfig_node_count + 1] = NULL;
 
-    nodes = malloc(sizeof(nodes[0]) * (node_count+1));
-    for (i=0; i < node_count; i++) {
-	nodes[i] = malloc(ndig+2);
-	sprintf(nodes[i], "N%d", i+1);
+  EVdfg_join_dfg(dfg, "origin", str_contact);
+
+  if (EVdfg_ready_wait(dfg) != 1) {
+    /* dfg initialization failed! */
+    exit(1);
+  }
+
+
+  if (EVdfg_active_sink_count(dfg) == 0) {
+    EVdfg_ready_for_shutdown(dfg);
+  }
+
+  if (EVdfg_source_active(source_handle)) {
+    simple_rec rec;
+    for (i = 0; i < 300; ++i) {
+      CMsleep(cm, 1);
+      generate_simple_record(&rec);
+      /* submit would be quietly ignored if source is not active */
+      EVsubmit(source_handle, &rec, NULL);
     }
-    nodes[node_count] = NULL;
-    cm = CManager_create();
-    CMlisten(cm);
-    contact_list = CMget_contact_list(cm);
-    str_contact = attr_list_to_string(contact_list);
+  }
 
-/*
-**  LOCAL DFG SUPPORT   Sources and sinks that might or might not be utilized.
-*/
+  status = EVdfg_wait_for_shutdown(dfg);
 
-    if (fanout) {
-      source_handle = EVcreate_submit_handle(cm, -1, simple_format_list);
-      EVdfg_register_source("master_source", source_handle);
-    } else {
-      EVdfg_register_sink_handler(cm, "simple_handler", simple_format_list,
-				  (EVSimpleHandlerFunc) simple_handler);
-    }
+  wait_for_children(nodes);
 
-/*
-**  DFG CREATION
-*/
-    test_dfg = EVdfg_create(cm);
-    EVdfg_register_node_list(test_dfg, &nodes[0]);
-    if (fanout) {
-
-      /* create arrays for storing tmp & last*/
-      last = malloc(last_row_size*sizeof(EVdfg_stone));
-      tmp = malloc(last_row_size*sizeof(EVdfg_stone));
-
-      last[0] = EVdfg_create_source_stone(test_dfg, "master_source");
-      EVdfg_assign_node(last[0], nodes[0]);
-      nbase = base;
-
-      for (i=2; i < level_count; i++) {
-	for (j=0; j<nbase; j++) {
-	  // nbase = pow(2,(i-1))
-	  n = nbase + j;
-	  tmp[j] = EVdfg_create_stone(test_dfg,NULL);
-	  EVdfg_link_port(last[j/base], j%2 , tmp[j]);
-	  EVdfg_assign_node(tmp[j], nodes[n-1]);
-	}
-	for (j=0; j<nbase; j++) {
-	  last[j] = tmp[j];
-	}
-	nbase *= base;
-      }
-      /* Now for the last row*/
-      chandle = malloc(sizeof(char)*(ndig + 10));
-      for (j=0; j<nbase; j++) {
-	n = nbase+j;
-	sprintf(chandle,"handlerN%d", n);
-	EVdfg_register_sink_handler(cm,chandle,simple_format_list, 
-				    (EVSimpleHandlerFunc) simple_handler);
-	tmp[j] = EVdfg_create_sink_stone(test_dfg,chandle);
-	EVdfg_link_port(last[j/base],j%2 ,tmp[j]);
-	EVdfg_assign_node(tmp[j], nodes[n-1]);
-      }
-   
-      EVdfg_realize(test_dfg);
-
-/* We're node 0 in the DFG */
-      EVdfg_join_dfg(test_dfg, nodes[0], str_contact);
-
-    }
-/* Fork the others */
-    test_fork_children(&nodes[0], str_contact);
-
-    if (EVdfg_ready_wait(test_dfg) != 1) {
-      /* dfg initialization failed! */
-      exit(1);
-    }
-
-    
-    if (EVdfg_active_sink_count(test_dfg) == 0) {
-	EVdfg_ready_for_shutdown(test_dfg);
-    }
-
-    if (EVdfg_source_active(source_handle)) {
-	simple_rec rec;
-	generate_simple_record(&rec);
-	EVsubmit(source_handle, &rec, NULL);
-    }
-
-    status = EVdfg_wait_for_shutdown(test_dfg);
-
-    wait_for_children(nodes);
-
-    CManager_close(cm);
-    return status;
+  CManager_close(cm);
+  return status;
 }
 
 
@@ -151,29 +223,34 @@ be_test_child(int argc, char **argv)
     char *chandle;
 
     cm = CManager_create();
+
     if (argc != 3) {
-	printf("Child usage:  evtest  <nodename> <mastercontact>\n");
-	exit(1);
+        printf("Child usage:  evtest  <nodename> <mastercontact>\n");
+        exit(1);
     }
-    test_dfg = EVdfg_create(cm);
+
+    dfg = EVdfg_create(cm);
 
     src = EVcreate_submit_handle(cm, -1, simple_format_list);
     EVdfg_register_source("master_source", src);
-    chandle = malloc(sizeof(char)*(strlen(argv[1]) + 9));
-    sprintf(chandle,"handler%s", argv[1]);
+//    chandle = malloc(sizeof(char)*(strlen(argv[1]) + 9));
+//    sprintf(chandle,"handler%s", argv[1]);
+
+    chandle = strdup("thandler");
+
     EVdfg_register_sink_handler(cm,chandle, simple_format_list,
-				(EVSimpleHandlerFunc) simple_handler);
-    EVdfg_join_dfg(test_dfg, argv[1], argv[2]);
-    EVdfg_ready_wait(test_dfg);
-    if (EVdfg_active_sink_count(test_dfg) == 0) {
-	EVdfg_ready_for_shutdown(test_dfg);
+                                (EVSimpleHandlerFunc) simple_handler);
+    EVdfg_join_dfg(dfg, argv[1], argv[2]);
+    EVdfg_ready_wait(dfg);
+    if (EVdfg_active_sink_count(dfg) == 0) {
+        EVdfg_ready_for_shutdown(dfg);
     }
 
     if (EVdfg_source_active(src)) {
-	simple_rec rec;
-	generate_simple_record(&rec);
-	/* submit will be quietly ignored if source is not active */
-	EVsubmit(src, &rec, NULL);
+        simple_rec rec;
+        generate_simple_record(&rec);
+        /* submit will be quietly ignored if source is not active */
+        EVsubmit(src, &rec, NULL);
     }
-    return EVdfg_wait_for_shutdown(test_dfg);
+    return EVdfg_wait_for_shutdown(dfg);
 }
