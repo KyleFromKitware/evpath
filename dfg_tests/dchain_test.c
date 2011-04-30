@@ -9,7 +9,8 @@
 
 static int status;
 static EVdfg test_dfg;
-const int reconfig_node_count = 10;
+const int reconfig_node_count = 3;
+const int num_terminals = 3;
 
 char *str_contact;
 char **reconfig_list = NULL;
@@ -75,7 +76,7 @@ join_handler(EVdfg dfg, char *identifier, void* available_sources, void *availab
 			EVdfg_realize(dfg);
 		}
 		else {
-			if (joined_node_count == 2) {
+			if (strcmp(identifier, "forker") == 0) {
 				//	delayed_fork_children(cm, &reconfig_list[0], str_contact, 5);
 				++joined_node_count;
 			}
@@ -97,7 +98,7 @@ join_handler(EVdfg dfg, char *identifier, void* available_sources, void *availab
 				}
 				++joined_node_count;
 				
-				if (joined_node_count == reconfig_node_count + 3) {
+				if (joined_node_count == reconfig_node_count * num_terminals + 2 + num_terminals) {
 					EVdfg_realize(dfg);
 				}
 			}
