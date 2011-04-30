@@ -76,7 +76,7 @@ join_handler(EVdfg dfg, char *identifier, void* available_sources, void *availab
 		}
 		else {
 			if (joined_node_count == 2) {
-				delayed_fork_children(cm, &reconfig_list[0], str_contact, 5);
+				//	delayed_fork_children(cm, &reconfig_list[0], str_contact, 5);
 				++joined_node_count;
 			}
 			else {
@@ -97,7 +97,7 @@ join_handler(EVdfg dfg, char *identifier, void* available_sources, void *availab
 				}
 				++joined_node_count;
 				
-				if (joined_node_count == 13) {
+				if (joined_node_count == reconfig_node_count + 3) {
 					EVdfg_realize(dfg);
 				}
 			}
@@ -209,6 +209,8 @@ be_test_child(int argc, char **argv)
     CManager cm;
     EVsource src;
 	
+    int i;
+	
     cm = CManager_create();
     if (argc != 3) {
 		printf("Child usage:  evtest  <nodename> <mastercontact>\n");
@@ -217,6 +219,16 @@ be_test_child(int argc, char **argv)
 	
 	printf("\nName = %s\n", argv[1]);
 	
+    reconfig_list = malloc(sizeof(reconfig_list[0]) * (reconfig_node_count + 2));
+    for (i=0; i < (reconfig_node_count + 1); i++) {
+        reconfig_list[i] = strdup("client");
+    }
+    reconfig_list[reconfig_node_count + 1] = NULL;
+	
+	//    if (strcmp(argv[1], "forker") == 0) {
+	//      delayed_fork_children(cm, &reconfig_list[0], argv[2], 5);
+	//    }
+	//    else {
     test_dfg = EVdfg_create(cm);
 	
     src = EVcreate_submit_handle(cm, -1, simple_format_list);
@@ -224,11 +236,20 @@ be_test_child(int argc, char **argv)
     EVdfg_register_sink_handler(cm, "simple_handler", simple_format_list,
 								(EVSimpleHandlerFunc) simple_handler);
     EVdfg_join_dfg(test_dfg, argv[1], argv[2]);
+	
+    if (strcmp(argv[1], "forker") == 0) {
+		test_fork_children(&reconfig_list[0], argv[2]);
+    }
+	
     EVdfg_ready_wait(test_dfg);
 	
     if (EVdfg_active_sink_count(test_dfg) == 0) {
 		EVdfg_ready_for_shutdown(test_dfg);
     }
+	
+	//    if (strcmp(argv[1], "forker") == 0) {
+	//      test_fork_children(&reconfig_list[0], argv[2]);
+	//    }
 	
     if (EVdfg_source_active(src)) {
 		simple_rec rec;
@@ -237,4 +258,5 @@ be_test_child(int argc, char **argv)
 		EVsubmit(src, &rec, NULL);
     }
     return EVdfg_wait_for_shutdown(test_dfg);
+	//    }
 }
