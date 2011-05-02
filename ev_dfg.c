@@ -198,7 +198,7 @@ extern void EVdfg_reconfig_link_port(EVdfg_stone src, int port, EVdfg_stone dest
 extern void EVdfg_reconfig_insert(EVdfg dfg, int src_stone_index, EVdfg_stone new_stone, int dest_stone_index, EVevent_list q_events) {
     reconfig_link_port(dfg->stones[src_stone_index], 0, new_stone, q_events);
     reconfig_link_port(new_stone, 0, dfg->stones[dest_stone_index], NULL);
-    printf("\nInside reconfig_insert, sin = %d, min = %d, din = %d : \n", dfg->stones[src_stone_index]->node, new_stone->node, dfg->stones[dest_stone_index]->node);
+//    printf("\nInside reconfig_insert, sin = %d, min = %d, din = %d : \n", dfg->stones[src_stone_index]->node, new_stone->node, dfg->stones[dest_stone_index]->node);
 }
 
 extern void
@@ -407,8 +407,8 @@ EVdfg_assign_canonical_name(EVdfg dfg, char *given_name, char *canonical_name)
     int node;
     for (node = 0; node < dfg->node_count; node++) {
 		if (dfg->nodes[node].name == given_name) {
-			if (dfg->realized == 1)
-				printf("\nReconfigure canonical name assignment, node = %d\n", node);
+//			if (dfg->realized == 1)
+//				printf("\nReconfigure canonical name assignment, node = %d\n", node);
 			dfg->nodes[node].canonical_name = strdup(canonical_name);
 		}
     }
@@ -465,9 +465,9 @@ node_register_handler(CManager cm, CMConnection conn, void *vmsg,
 			dfg->reconfig = 1;
 			dfg->sig_reconfig_bool = 1;
 			dfg->old_node_count = dfg->node_count;
-			printf("\nReconfigure, msg->contact_string = %s\n", msg->contact_string);
-			printf("\nnode_count = %d, stone_count = %d\n", dfg->node_count, dfg->stone_count);
-			fflush(stdout);
+//			printf("\nReconfigure, msg->contact_string = %s\n", msg->contact_string);
+//			printf("\nnode_count = %d, stone_count = %d\n", dfg->node_count, dfg->stone_count);
+//			fflush(stdout);
 		}
 		
 		int n = dfg->node_count++;
@@ -486,13 +486,13 @@ node_register_handler(CManager cm, CMConnection conn, void *vmsg,
     check_all_nodes_registered(dfg);
 	
     gettimeofday(tv_end, NULL);
-	//    fprintf(fp, "\n%f", (float)tv_end->tv_usec - (float)tv_start->tv_usec);
+	    fprintf(fp, "%f\n", (float)tv_end->tv_usec - (float)tv_start->tv_usec);
 	
-	//    if (dfg->node_count == 51) {
-	//      fclose(fp);
-	//    }
+	    if (dfg->node_count == 277) {
+	      fclose(fp);
+	    }
 	
-    printf("\nTime difference = %f\n", (float)tv_end->tv_usec - (float)tv_start->tv_usec);
+    printf("\nNode# = %d, Time difference = %f, %f\n", (float)tv_end->tv_sec - (float)tv_start->tv_sec, dfg->node_count, (float)tv_end->tv_usec - (float)tv_start->tv_usec);
     fflush(stdout);
 }
 
@@ -711,10 +711,10 @@ EVdfg_assign_node(EVdfg_stone stone, char *node_name)
 		printf("Node \"%s\" not found in node list\n", node_name);
     }
 	
-    if (dfg->realized == 1) {
-		printf("\nassign node, node# = %d\n", node);
-		fflush(stdout);
-    }
+//    if (dfg->realized == 1) {
+//		printf("\nassign node, node# = %d\n", node);
+//		fflush(stdout);
+//    }
     stone->node = node;
 }
 
@@ -858,7 +858,7 @@ EVdfg_join_dfg(EVdfg dfg, char* node_name, char *master_contact)
 		/* we are the master */
 		
 		/* pprabhu: */
-		//    	fp = fopen("dchain_numbers_static", "a");
+		    	fp = fopen("dchain_scaling_25_10", "w");
 		//    	fprintf(fp, "%s", strdup("\n\n30 nodes :"));
 		
 		int node=0;
@@ -1072,13 +1072,13 @@ void reconfig_delete_link(EVdfg dfg, int src_index, int dest_index) {
 						REVstone_remove_split_target(dfg->nodes[src->node].conn, src->stone_id, temp_stone->stone_id);
 						//	    REVfreeze_stone(dfg->nodes[temp_stone->node].conn, temp_stone->stone_id);
 						
-						printf("\ndeleting remotely.. sounds good till here.. src->node = %d, src_index = %d\n", src->node, src_index);
-						fflush(stdout);
+//						printf("\ndeleting remotely.. sounds good till here.. src->node = %d, src_index = %d\n", src->node, src_index);
+//						fflush(stdout);
 						
 						//	    transfer_events = REVextract_stone_events(dfg->nodes[temp_stone->node].conn, temp_stone->stone_id);
 						
-						printf("\nexracted events in delete..\n");
-						fflush(stdout);
+//						printf("\nexracted events in delete..\n");
+//						fflush(stdout);
 						
 						REVfree_stone(dfg->nodes[src->node].conn, temp_stone->stone_id);
 						//free(temp-stone);
@@ -1133,7 +1133,7 @@ static void reconfig_deploy(EVdfg dfg) {
     for (i = 0; i < dfg->stone_count; ++i) {
 		if (dfg->stones[i]->new_out_count > 0) {
 			cur = dfg->stones[i];
-			printf("\nreconfig_deploy: cu, i = %d\n", i);
+//			printf("\nreconfig_deploy: cu, i = %d\n", i);
 			if (cur->frozen == 0) {
 				if (cur->node == 0) {
 					/* Master */
@@ -1234,13 +1234,13 @@ static void reconfig_deploy(EVdfg dfg) {
 			//	      new_bridge_stone_id = REVcreate_bridge_action(dfg->nodes[cur->node].conn, cur->new_out_links[j]->attrs, cur->new_out_links[j]->stone_id);
 			if (temp_stone->bridge_stone) {
                 if (cur->node == 0) {
-					printf("\nreconfig_deploy: Locally freeing..\n");
-					fflush(stdout);
+//					printf("\nreconfig_deploy: Locally freeing..\n");
+//					fflush(stdout);
 					EVfree_stone(dfg->cm, temp_stone->stone_id);
 				}
 				else {
-					printf("\nreconfig_deploy: Remotely freeing..\n");
-					fflush(stdout);
+//					printf("\nreconfig_deploy: Remotely freeing..\n");
+//					fflush(stdout);
 					REVfree_stone(dfg->nodes[temp_stone->node].conn, temp_stone->stone_id);
                 }
 				//free(temp_stone);
@@ -1327,9 +1327,9 @@ static void reconfig_deploy(EVdfg dfg) {
     }
 	
 	
-    for (i = 0; i < dfg->stone_count; ++i) {
-		printf("\nstone# = %d, node# = %d, stone->new_out_count = %d\n", i, dfg->stones[i]->node, dfg->stones[i]->new_out_count);
-    }
+//    for (i = 0; i < dfg->stone_count; ++i) {
+//		printf("\nstone# = %d, node# = %d, stone->new_out_count = %d\n", i, dfg->stones[i]->node, dfg->stones[i]->new_out_count);
+//    }
 }
 
 
@@ -1364,10 +1364,10 @@ static void reconfig_add_bridge_stones(EVdfg dfg) {
 			cur = dfg->stones[i];
 			for (k = dfg->old_node_count; k < dfg->node_count; ++k) {
 				if (k == cur->node && cur->new_out_count !=0 ) {
-					printf("\nreconfig_add_bridge_stones: Entry check..\n");
-					fflush(stdout);
-					printf("\nreconfig_add_bridge_stones: cur->new_out_links[0]->node = %d, new stone = %d\n", cur->new_out_links[0]->node, i);
-					fflush(stdout);
+//					printf("\nreconfig_add_bridge_stones: Entry check..\n");
+//					fflush(stdout);
+//					printf("\nreconfig_add_bridge_stones: cur->new_out_links[0]->node = %d, new stone = %d\n", cur->new_out_links[0]->node, i);
+//					fflush(stdout);
 					for (j = 0; j < cur->new_out_count; ++j) {
 						EVdfg_link_port(cur, cur->new_out_ports[j], cur->new_out_links[j]);
 					}
@@ -1380,16 +1380,16 @@ static void reconfig_add_bridge_stones(EVdfg dfg) {
 					
 					cur->new_out_count = 0;
 					
-					printf("\nreconfig_add_bidge_stones: cur->out_links[0]->node = %d\n", cur->out_links[0]->node);
-					fflush(stdout);
+//					printf("\nreconfig_add_bidge_stones: cur->out_links[0]->node = %d\n", cur->out_links[0]->node);
+//					fflush(stdout);
 					for (j = 0; j < cur->out_count; ++j) {
 						EVdfg_stone target = cur->out_links[j];
-						printf("\nreconfig_add_bridge_stones: target->stone_id = %d, target->node = %d\n", target->stone_id, target->node);
+//						printf("\nreconfig_add_bridge_stones: target->stone_id = %d, target->node = %d\n", target->stone_id, target->node);
 						fflush(stdout);
 						if (target && (!cur->bridge_stone) && (cur->node != target->node)) {
 							cur->out_links[j] = create_bridge_stone(dfg, target);
-							printf("\nreconfig_add_bridge_stones: target->stone_id = %d, target->node = %d\n", target->stone_id, target->node);
-							fflush(stdout);
+//							printf("\nreconfig_add_bridge_stones: target->stone_id = %d, target->node = %d\n", target->stone_id, target->node);
+//							fflush(stdout);
 							/* put the bridge stone where the source stone is */
 							cur->out_links[j]->node = cur->node;
 						}

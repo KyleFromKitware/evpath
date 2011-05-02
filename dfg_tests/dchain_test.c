@@ -9,8 +9,8 @@
 
 static int status;
 static EVdfg test_dfg;
-const int reconfig_node_count = 3;
-const int num_terminals = 3;
+const int reconfig_node_count = 10;
+const int num_terminals = 25;
 
 char *str_contact;
 char **reconfig_list = NULL;
@@ -97,7 +97,8 @@ join_handler(EVdfg dfg, char *identifier, void* available_sources, void *availab
 					stone_index+= 1;
 				}
 				++joined_node_count;
-				
+				//printf("\njoined node count = %d\n", joined_node_count);	
+				//fflush(stdout);
 				if (joined_node_count == reconfig_node_count * num_terminals + 2 + num_terminals) {
 					EVdfg_realize(dfg);
 				}
