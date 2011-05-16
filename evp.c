@@ -11,6 +11,10 @@
 #include "evpath.h"
 #include "cm_internal.h"
 #include "response.h"
+#include "evp_reliability.h"
+#include "ringbuffer.h"
+
+#include "debug.h"
 
 extern 
 FMFormat EVregister_format_set(CManager cm, FMStructDescList list);
@@ -21,6 +25,8 @@ static void dump_stone(stone_type stone);
 static int is_output_stone(CManager cm, EVstone stone_num);
 
 static const char *action_str[] = { "Action_NoAction","Action_Bridge", "Action_Thread_Bridge", "Action_Terminal", "Action_Filter", "Action_Immediate", "Action_Multi", "Action_Decode", "Action_Encode_to_Buffer", "Action_Split", "Action_Store", "Action_Congestion", "Action_Source"};
+
+extern ring_buffer *restrict event_buffer;
 
 
 extern int
@@ -1797,7 +1803,7 @@ do_bridge_action(CManager cm, int s)
 	event_item *event = dequeue_event(cm, stone, &action_id);
 	if (act->o.bri.conn == NULL) {
 	    CMtrace_out(cm, EVerbose, "Bridge stone %d has closed connection\n", s);
-	} else {
+	} else {		
 	    CMtrace_out(cm, EVerbose, "Writing event to remote stone %d\n",
 			act->o.bri.remote_stone_id);
 	    if (event->format) {
@@ -2398,7 +2404,16 @@ foreach_source(CManager cm, EVstone to_stone, ForeachSourceCB cb, void *user_dat
 static void
 backpressure_transition(CManager cm, EVstone s, stall_source src, int new_value);
 
-enum { CONTROL_SQUELCH, CONTROL_UNSQUELCH };
+enum { 
+	CONTROL_SQUELCH,
+	CONTROL_UNSQUELCH,
+	HASH_ACK,	//R->S: Hash was OK
+	HASH_NACK,	//R->S: Hash was not OK
+	HASH_LACK,	//R->S: Don't support the hash you used
+	HASH_GACK,	//R->S: Give up trying to resend
+	HASH_SACK,	//R->S: Hash wasn't OK, but the data didn't matter anyway
+	HASH_WACK,	//S->R: Don't (no longer or never) have the event you requested for resend
+};
 
 static void
 register_backpressure_callback(CManager cm, EVstone s, EVSubmitCallbackFunc cb, void *user_data) {
@@ -2623,6 +2638,39 @@ INT_EVhandle_control_message(CManager cm, CMConnection conn, unsigned char type,
             }
         }
         break;
+	// Remove event if it exists
+	case HASH_ACK:
+	case HASH_LACK:
+	case HASH_SACK:
+	case HASH_GACK:
+		INFO();
+		/*
+		 * TODO don't just hack on to arg
+		 */
+		event_id_t recvd_id = arg;
+		if(!ring_buffer_remove(event_buffer, recvd_id.raw_id)) {
+			// We didn't find it in the ring buffer
+			INT_CMwrite_evcontrol(conn, HASH_WACK, recvd_id);
+		}
+		break;
+	// Resend event if available
+	case HASH_NACK:
+		INFO();
+		/*
+		 * TODO don't just hack on to arg
+		 */
+		event_id_t recvd_id = arg;
+		size_t index = ring_buffer_find(event_buffer, recvd_id.raw_id);
+		if(index == SIZE_MAX) {
+			// We didn't find it in the ring buffer
+			INT_CMwrite_evcontrol(conn, HASH_WACK, recvd_id);
+		} else {
+			//TODO resend
+		}
+		break;
+	case HASH_WACK:
+		INFO();
+		break;
     default:
         assert(FALSE);
     }
@@ -2751,6 +2799,37 @@ internal_cm_network_submit(CManager cm, CMbuffer cm_data_buf,
     event->format = NULL;
     CMtrace_out(cm, EVerbose, "Event coming in from network to stone %d\n", 
 		stone_id);
+	
+	// Do hashing stuff
+	char *base64_hash = NULL;
+	int hash_status = check_event_hash(event->encoded_event, event->event_len, event->attrs, &base64_hash);
+	// TODO Ugly hack to allow the use of the single int arg in evcontrol path
+	event_id_t event_id = 0;
+	((char*)&event_id)[0] = base64_hash[0];
+	((char*)&event_id)[1] = base64_hash[1];
+	((char*)&event_id)[2] = base64_hash[2];
+	((char*)&event_id)[3] = base64_hash[3];
+	//TODO Is conn here the same as info->u.remote.conn as seen in case SOURCE_REMOTE?
+	switch(hash_status) {
+	case RESULT_OK:
+		INFO("Hash check passed\n");
+		INT_CMwrite_evcontrol(conn, HASH_ACK, event_id);
+		break;
+	case RESULT_IGNORE:
+		INFO("Did not need to perform hash check\n");
+		break;
+	case RESULT_UNABLE:
+		INFO("Could not perform hash check\n");
+		INT_CMwrite_evcontrol(conn, HASH_LACK, event_id);
+		break;
+	case RESULT_FAIL:
+		INFO("Hash check failed\n");
+		INT_CMwrite_evcontrol(conn, HASH_NACK, event_id);
+		break;
+	default:
+		assert(0);
+	}
+	
     if (CMtrace_on(conn->cm, EVerbose)) {
 	static int dump_char_limit = 256;
 	static int warned = 0;
@@ -2883,6 +2962,12 @@ free_evp(CManager cm, void *not_used)
     free(evp);
 }
 
+void return_event_thunk(event_item *event, va_list extra_args) {
+	event_path_data evp = va_arg(extra_args, event_path_data);
+	return_event(evp, event);
+	va_end(extra_args);
+}
+
 void
 EVPinit(CManager cm)
 {
@@ -2903,7 +2988,15 @@ EVPinit(CManager cm)
 	    cm->evp->stone_base_num = lrand48() & 0xffff;
 	}
 	
-    }
+    } else {
+		init_hash_functions();
+		char *ebs_str = getenv("EVENT_BUFFER_SIZE");
+		long event_buffer_size = 128;
+		if(ebs_str != NULL)
+			event_buffer_size = strtol(ebs_str);
+		//TODO Fix the int arg evcontrol hack
+		event_buffer = ring_buffer_create(event_buffer_size, 4, return_event_thunk);
+	}
     CMtrace_out(cm, EVerbose, "INITATED EVPATH, base stone num is %d\n", 
 		cm->evp->stone_base_num);
     first_evpinit = 0;

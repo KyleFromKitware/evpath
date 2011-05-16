@@ -15,6 +15,7 @@
 
 #include "ffs.h"
 #include "atl.h"
+#include "ringbuffer.h"
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -133,7 +134,20 @@ typedef void (*CMCloseHandlerFunc) ARGS((CManager cm, CMConnection conn,
 typedef void (*CMWriteCallbackFunc) ARGS((CManager cm, CMConnection conn,
 					  void *client_data));
 
+/*!
+ * The type representing event ids in the event buffer.
+ * 
+ * Note that it IS a pointer.
+ */
+typedef union __attribute__((__transparent_union__)) {
+	int id;
+	uint8_t raw_id[sizeof(int)] __attribute__((packed));
+} event_id_t;
 
+/*!
+ * The ring buffer which holds events for possible retransmission due to evp_reliability semantics
+ */
+extern ring_buffer *restrict event_buffer;
 
 /*!
  * create a CManager.

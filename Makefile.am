@@ -3,6 +3,10 @@
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS="-Iconfig"
 ACLOCAL_AMFLAGS+="-I libltdl/m4"
+#TODO: How should we deal with:
+# the ../debug dir?
+# any hashing headers for evp_reliability
+# atl header deps? (though they're likely taken care of by cercs stuff
 
 SUBDIRS = libltdl . tests dfg_tests mtests rtests old_tests
 
@@ -32,7 +36,8 @@ pkgconfig_DATA = evpath-3.0.pc
 libevpath_la_SOURCES = cm.c cm_control.c cm_formats.c cm_util.c cm_transport.c \
                        cm_lock.c cm_pbio.c cm_interface.c version.c \
                        cm_threadio.c cm_evol.c evp.c response.c metrics.c \
-                       revp.c evp_compat.c thin_server.c evp_threads.c ev_dfg.c
+                       revp.c evp_compat.c thin_server.c evp_threads.c ev_dfg.c \
+                       ringbuffer.c evp_reliability.c
 
 if CNL
 libevpath_la_SOURCES += cmsockets.c cmselect.c

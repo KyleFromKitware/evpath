@@ -2393,10 +2393,21 @@ internal_write_event(CMConnection conn, CMFormat format, void *remote_path_id,
 	data_length = event->event_len;
     }
     if (attrs != NULL) {
-	attrs_present++;
-	encoded_attrs = encode_attr_for_xmit(attrs, conn->attr_encode_buffer,
-					     &attr_len);
-	attr_len = (attr_len +7) & -8;  /* round up to even 8 */
+		// Do hashing stuff here because we HAVE to have the encoded event
+		char *base64_hash = NULL;
+		if(create_event_hash(vec[0].iov_base, data_length, attrs, &base64_hash) == RESULT_OK) {
+			/*
+			 * TODO Fix the int arg evcontrol hack
+			 */
+			if(ring_buffer_insert(event_buffer, (uint8_t*)base64_hash, vec[0].iov_base, data_length, conn->cm->evp)) {
+				INFO("The ring buffer is overflowing...\n");
+			}
+		}
+		
+		attrs_present++;
+		encoded_attrs = encode_attr_for_xmit(attrs, conn->attr_encode_buffer,
+							&attr_len);
+		attr_len = (attr_len +7) & -8;  /* round up to even 8 */
     }
     CMtrace_out(conn->cm, CMDataVerbose, "CM - Total write size is %d bytes data + %d bytes attrs\n", data_length, attr_len);
     if (cm_write_hook != NULL) {
