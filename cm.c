@@ -2398,8 +2398,13 @@ internal_write_event(CMConnection conn, CMFormat format, void *remote_path_id,
 		if(create_event_hash(vec[0].iov_base, data_length, attrs, &base64_hash) == RESULT_OK) {
 			/*
 			 * TODO Fix the int arg evcontrol hack
+			 * TODO We should deal with inserting the attrs in the ring_buffer as well, along
+			 * with the event item itself. We perhaps should also hash the attrs. But this is
+			 * all complicated, because we have to insert the hash into the attrs as well...
+			 * Probably the best course of action would be to keep the attrs around (with hash
+			 * inserted) along with the vec data.
 			 */
-			if(ring_buffer_insert(event_buffer, (uint8_t*)base64_hash, vec[0].iov_base, data_length, conn->cm->evp)) {
+			if(ring_buffer_insert(event_buffer, (uint8_t*)base64_hash, vec, data_length, conn->cm->evp)) {
 				INFO("The ring buffer is overflowing...\n");
 			}
 		}
