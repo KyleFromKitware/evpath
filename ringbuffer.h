@@ -9,7 +9,7 @@
 
 typedef void (*free_data_cb)(void* data, va_list extra_args);
 
-typedef struct ring_buffer_node {
+typedef struct {
 	// ptr to id can change, but not id itself
 	uint8_t const *id;
 	// same as above
@@ -19,7 +19,7 @@ typedef struct ring_buffer_node {
 	va_list free_data_extra_args;
 	uint_fast32_t age;
 	uint_fast8_t refcnt;
-} ring_buffer_node;
+} ringbuffer_node;
 
 typedef struct {
 	// We don't anticipate much contention, so it's a global lock
@@ -30,29 +30,29 @@ typedef struct {
 	// Can be NULL
 	free_data_cb fd_cb;
 	// Yes, the entirety of buf is flat here
-	ring_buffer_node buf[];
-} ring_buffer;
+	ringbuffer_node buf[];
+} ringbuffer;
 
-ring_buffer *restrict ring_buffer_create(size_t size,
+ringbuffer *restrict ringbuffer_create(size_t size,
 										 size_t id_len,
 										 free_data_cb fd_cb)
                                          __attribute__((pure));
 //TODO: Unsure whether we could use const here...
-void ring_buffer_free(ring_buffer *resrict ring);
+void ringbuffer_free(ringbuffer *ring);
 
 // Returns true if we overwrote something
-bool ring_buffer_insert(ring_buffer *restrict const ring,
+bool ringbuffer_insert(ringbuffer *restrict const ring,
 						uint8_t const *restrict const id,
 						void const *restrict const data,
 						size_t data_len, ...)
 						__attribute__((nonnull (1,2)));
 // Returns true if we found something to remove
-bool ring_buffer_remove(ring_buffer *restrict const ring,
+bool ringbuffer_remove(ringbuffer *restrict const ring,
 						uint8_t const *restrict const id)
 						__attribute__((nonnull));
 
 // Returns SIZE_MAX if not found
-size_t ring_buffer_find(ring_buffer const *restrict const ring,
+size_t ringbuffer_find(ringbuffer const *restrict const ring,
 						uint8_t const *restrict const id)
 						__attribute__((nonnull, pure));
 

@@ -26,7 +26,7 @@ static int is_output_stone(CManager cm, EVstone stone_num);
 
 static const char *action_str[] = { "Action_NoAction","Action_Bridge", "Action_Thread_Bridge", "Action_Terminal", "Action_Filter", "Action_Immediate", "Action_Multi", "Action_Decode", "Action_Encode_to_Buffer", "Action_Split", "Action_Store", "Action_Congestion", "Action_Source"};
 
-extern ring_buffer *restrict event_buffer;
+extern ringbuffer *event_buffer;
 
 
 extern int
@@ -2647,8 +2647,9 @@ INT_EVhandle_control_message(CManager cm, CMConnection conn, unsigned char type,
 		/*
 		 * TODO don't just hack on to arg
 		 */
-		event_id_t recvd_id = arg;
-		if(!ring_buffer_remove(event_buffer, recvd_id.raw_id)) {
+		event_id_t recvd_id;
+		recvd_id.id = arg;
+		if(!ringbuffer_remove(event_buffer, recvd_id.raw_id)) {
 			// We didn't find it in the ring buffer
 			INT_CMwrite_evcontrol(conn, HASH_WACK, recvd_id);
 		}
@@ -2660,7 +2661,8 @@ INT_EVhandle_control_message(CManager cm, CMConnection conn, unsigned char type,
 		 * TODO don't just hack on to arg
 		 */
 		event_id_t recvd_id = arg;
-		size_t index = ring_buffer_find(event_buffer, recvd_id.raw_id);
+		recvd_id.id = arg;
+		size_t index = ringbuffer_find(event_buffer, recvd_id.raw_id);
 		if(index == SIZE_MAX) {
 			// We didn't find it in the ring buffer
 			INT_CMwrite_evcontrol(conn, HASH_WACK, recvd_id);
@@ -2804,11 +2806,12 @@ internal_cm_network_submit(CManager cm, CMbuffer cm_data_buf,
 	char *base64_hash = NULL;
 	int hash_status = check_event_hash(event->encoded_event, event->event_len, event->attrs, &base64_hash);
 	// TODO Ugly hack to allow the use of the single int arg in evcontrol path
-	event_id_t event_id = 0;
-	((char*)&event_id)[0] = base64_hash[0];
-	((char*)&event_id)[1] = base64_hash[1];
-	((char*)&event_id)[2] = base64_hash[2];
-	((char*)&event_id)[3] = base64_hash[3];
+	event_id_t event_id;
+	event_id.id = 0
+	((char*)&event_id.raw_id)[0] = base64_hash[0];
+	((char*)&event_id.raw_id)[1] = base64_hash[1];
+	((char*)&event_id.raw_id)[2] = base64_hash[2];
+	((char*)&event_id.raw_id)[3] = base64_hash[3];
 	//TODO Is conn here the same as info->u.remote.conn as seen in case SOURCE_REMOTE?
 	switch(hash_status) {
 	case RESULT_OK:
@@ -2995,7 +2998,7 @@ EVPinit(CManager cm)
 		if(ebs_str != NULL)
 			event_buffer_size = strtol(ebs_str);
 		//TODO Fix the int arg evcontrol hack
-		event_buffer = ring_buffer_create(event_buffer_size, 4, return_event_thunk);
+		event_buffer = ringbuffer_create(event_buffer_size, 4, return_event_thunk);
 	}
     CMtrace_out(cm, EVerbose, "INITATED EVPATH, base stone num is %d\n", 
 		cm->evp->stone_base_num);
