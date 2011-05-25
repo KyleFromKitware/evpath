@@ -2966,9 +2966,16 @@ free_evp(CManager cm, void *not_used)
 }
 
 void return_event_thunk(event_item *event, va_list extra_args) {
-	event_path_data evp = va_arg(extra_args, event_path_data);
+	event_path_data evp = va_arg(extra_args, event);
 	return_event(evp, event);
-	va_end(extra_args);
+}
+
+void free_attr_list_thunk(attr_list attrs, va_list extra_args) {
+	free_attr_list(attrs);
+}
+
+void free_thunk(void *data, va_list extra_args) {
+	free(data);
 }
 
 void
@@ -2997,8 +3004,8 @@ EVPinit(CManager cm)
 		long event_buffer_size = 128;
 		if(ebs_str != NULL)
 			event_buffer_size = strtol(ebs_str);
-		//TODO Fix the int arg evcontrol hack
-		event_buffer = ringbuffer_create(event_buffer_size, 4, return_event_thunk);
+		free_data_cb thunks[] = { return_event_thunk, free_thunk, free_attr_list_thunk };
+		event_buffer = ringbuffer_create(event_buffer_size, sizeof(event_id_t), 3, thunks);
 	}
     CMtrace_out(cm, EVerbose, "INITATED EVPATH, base stone num is %d\n", 
 		cm->evp->stone_base_num);

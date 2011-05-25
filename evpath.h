@@ -146,8 +146,10 @@ typedef union __attribute__((__transparent_union__)) {
 
 /*!
  * The ring buffer which holds events for possible retransmission due to evp_reliability semantics
+ *
+ * Data it carries: { event_data, event_data_len, event_attrs }
  */
-extern ring_buffer *restrict event_buffer;
+extern ring_buffer *event_buffer;
 
 /*!
  * create a CManager.
