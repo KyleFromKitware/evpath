@@ -81,6 +81,8 @@ bool ringbuffer_insert(ringbuffer *restrict const ring,
 	va_start(ap, data);
 	va_list fd_extra_args[ring->num_data];
 	fd_extra_args[0] = ap;
+	for(size_t i=1; i<ring->num_data; i++)
+		fd_extra_args[i] = NULL;
 	return ringbuffer_insert_v(ring, id, data, fd_extra_args);
 }
 
