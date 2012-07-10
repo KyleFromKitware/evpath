@@ -302,7 +302,7 @@ attr_list conn_attr_list;
 
     dest_addr.sun_family = AF_UNIX;
     strncpy (dest_addr.sun_path, filename, sizeof(dest_addr.sun_path));
-    dest_addr.sun_path[sizeof (dest_addr.sun_path) - 1] = ’\0’;    
+    dest_addr.sun_path[sizeof (dest_addr.sun_path) - 1] = '\0';    
 
     // connect to the target process
     if (connect(sock, &dest_addr, addr_len) < 0) {
@@ -587,7 +587,7 @@ attr_list listen_info;
     }
     else {
         strncpy(addr.sun_path, filename, sizeof(addr.sun_path));
-        addr.sun_path[sizeof(addr.sun_path)-1] = ’\0’;
+        addr.sun_path[sizeof(addr.sun_path)-1] = '\0';
         unlink(filename);            
     }
     unlink(filename);
