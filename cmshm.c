@@ -109,7 +109,7 @@ typedef struct shm_transport_data {
     pid_t my_pid;               // local process's pid
     int socket_fd;              // local unix domain socket to accept contention messages
     char *filename;             // file path associated with socket
-     df_shm_method_t shm_method; // a handle to underlying shm method
+    df_shm_method_t shm_method; // a handle to underlying shm method
     pthread_t listen_thread;
     int listen_thread_cmd;      // 0: wait to start; 1: run; 2: stop
     struct shm_connection_data *connections;
@@ -615,7 +615,7 @@ attr_list listen_info;
          (attr_value) strdup("shm"));
 
     if(is_threaded == 0) {     
-        svc->trace_out(cm, "CMudp Adding libcmshm_data_available as action on fd %d", socket_fd);
+        svc->trace_out(cm, "CMshm Adding libcmshm_data_available as action on fd %d", socket_fd);
         svc->fd_add_select(cm, socket_fd, libcmshm_data_available,
                    (void *) trans, (void *) (long)socket_fd);
     }
@@ -657,8 +657,8 @@ attr_list attrs;
 {
     df_shm_queue_ep_t send_ep = shm_cd->send_ep;
     
-    svc->trace_out(shm_cd->shm_td->cm, "CMShm writev of %d vectors on fd %d",
-           iovcnt, fd);
+    svc->trace_out(shm_cd->shm_td->cm, "CMShm writev of %d vectors",
+           iovcnt);
            
     // put data to send queue. this is a blocking call.       
     int rc = df_enqueue_vector (send_ep, iov, iovcnt);
