@@ -461,8 +461,10 @@ shm_conn_data_ptr shm_cd;
 }
 
 /*
- * this function is not implemented since shm doesn't use CM's select callback to 
- * receive data.
+ * this function is called when theere is connection request on the unix 
+ * domain socket. Typically the thread blocking on select() will call this
+ * function. It create per-connection data and add it to the list. The listen
+ * thread will poll the connection for data messages. 
  */ 
 static void
 libcmshm_data_available(void *vtrans, void *vinput)
@@ -472,7 +474,10 @@ libcmshm_data_available(void *vtrans, void *vinput)
     shm_transport_data_ptr shm_td = (shm_transport_data_ptr) trans->trans_data;
     shm_conn_data_ptr shm_cd = shm_td->connections;
 
-    /* nothing to do. we shouldn't even be here! */
+    /* detect who is sending, and create a new 'connection' if it's new */
+
+
+
 }
 
 void *
@@ -576,7 +581,7 @@ attr_list listen_info;
         
         // try to generate a unique filename for socket
         // TODO: we need something like mkstemp to avoid race condition. for now just use
-        // pid plus the timestamp value return from gettimeofday()
+        // pid plus the timestamp value returned from gettimeofday()
         struct timeval current_time;
         filename = addr.sun_path;
         gettimeofday(&current_time, NULL);
