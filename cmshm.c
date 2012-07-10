@@ -115,8 +115,6 @@ typedef struct shm_transport_data {
     struct shm_connection_data *connections;
 } *shm_transport_data_ptr;
 
-#define MSGBUFSIZE 25600
-
 typedef struct shm_connection_data {
     CMbuffer read_buffer;
     int read_buf_len;
@@ -249,7 +247,7 @@ attr_list conn_attr_list;
     size_t queue_size = df_calculate_queue_size(num_queue_slots, max_payload_size);
     size_t region_size = 2 * queue_size;
     if(region_size % PAGE_SIZE) { 
-        region_size += (PAGE_SIZE - (region_size % PAGE_SIZE);
+        region_size += PAGE_SIZE - (region_size % PAGE_SIZE);
     }
     df_shm_region_t shm_region = df_create_shm_region(shm_td->shm_method, region_size, NULL); 
     if(!shm_region) {
@@ -270,13 +268,13 @@ attr_list conn_attr_list;
     if(send_q_start % CACHELINE_SIZE) {
         send_q_start += CACHELINE_SIZE - (send_q_start % CACHELINE_SIZE);
     }
-    *((uint64_t *) ptr) = (uint64_t) (send_q_start - (char *) shm_region->starting_addr));
+    *((uint64_t *) ptr) = (uint64_t) (send_q_start - (char *) shm_region->starting_addr);
     ptr += sizeof(uint64_t);
     char *recv_q_start = send_q_start + queue_size;
     if(recv_q_start % CACHELINE_SIZE) {
         recv_q_start += CACHELINE_SIZE - (recv_q_start % CACHELINE_SIZE);
     }
-    *((uint64_t *) ptr) = (uint64_t) (recv_q_start - (char *) shm_region->starting_addr));
+    *((uint64_t *) ptr) = (uint64_t) (recv_q_start - (char *) shm_region->starting_addr);
     
     // send queue is for this process to send data to target process
     df_queue_t send_q = df_create_queue (send_q_start, num_queue_slots, max_playload_size);
