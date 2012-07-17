@@ -79,6 +79,8 @@
 #define MAX_NUM_SLOTS      10
 #define MAX_SMALL_MSG_SIZE 2048
 #define MAX_PAYLOAD_SIZE   2048
+#define CONN_MSG_SIZE      256
+
 
 #ifndef SOCKET_ERROR
 #define SOCKET_ERROR -1
@@ -123,7 +125,7 @@ typedef struct shm_connection_data {
     attr_list attrs;
     struct sockaddr_un dest_addr;
     char *filename;              // filename for unix domain socket
-    pid_t peer_pid;                 // peer process's pid
+    pid_t peer_pid;              // peer process's pid
     df_shm_region_t shm_region;  // shm region for this connection
     df_shm_queue_ep_t send_ep;   // sender endpoint handle for outgoing queue
     df_shm_queue_ep_t recv_ep;   // receiver endpoint handle for incoming queue    
@@ -245,7 +247,7 @@ attr_list conn_attr_list;
     // create a shm region and two FIFO queues in the region
     // size of each shm region is calculated according to the queue size    
     size_t queue_size = df_calculate_queue_size(num_queue_slots, max_payload_size);
-    size_t region_size = 2 * queue_size;
+    size_t region_size = 2 * queue_size + 3 * sizeof(uint64_t); // meta-data at beginning
     if(region_size % PAGE_SIZE) { 
         region_size += PAGE_SIZE - (region_size % PAGE_SIZE);
     }
@@ -264,24 +266,24 @@ attr_list conn_attr_list;
     char *ptr = (char *) shm_region->starting_addr; // start of region, should be page-aligned
     *((uint64_t *) ptr) = (uint64_t) shm_region->creator_id;
     ptr += sizeof(uint64_t);
-    char *send_q_start = (char *) shm_region->starting_addr + 2 * sizeof(uint64_t);
-    if(send_q_start % CACHELINE_SIZE) {
-        send_q_start += CACHELINE_SIZE - (send_q_start % CACHELINE_SIZE);
+    char *send_q_start = (char *) shm_region->starting_addr + 3 * sizeof(uint64_t);
+    if(send_q_start % CACHE_LINE_SIZE) {
+        send_q_start += CACHE_LINE_SIZE - (send_q_start % CACHE_LINE_SIZE);
     }
     *((uint64_t *) ptr) = (uint64_t) (send_q_start - (char *) shm_region->starting_addr);
     ptr += sizeof(uint64_t);
     char *recv_q_start = send_q_start + queue_size;
-    if(recv_q_start % CACHELINE_SIZE) {
-        recv_q_start += CACHELINE_SIZE - (recv_q_start % CACHELINE_SIZE);
+    if(recv_q_start % CACHE_LINE_SIZE) {
+        recv_q_start += CACHE_LINE_SIZE - (recv_q_start % CACHE_LINE_SIZE);
     }
     *((uint64_t *) ptr) = (uint64_t) (recv_q_start - (char *) shm_region->starting_addr);
     
     // send queue is for this process to send data to target process
-    df_queue_t send_q = df_create_queue (send_q_start, num_queue_slots, max_playload_size);
+    df_queue_t send_q = df_create_queue (send_q_start, num_queue_slots, max_payload_size);
     df_queue_ep_t send_ep = df_get_queue_sender_ep(send_q);
     
     // recv queue is for this process to receive data sent by target process
-    df_queue_t recv_q = df_create_queue (recv_q_start, num_queue_slots, max_playload_size);
+    df_queue_t recv_q = df_create_queue (recv_q_start, num_queue_slots, max_payload_size);
     df_queue_ep_t recv_ep = df_get_queue_receiver_ep(recv_q);    
     
     // TODO: touch each every page in shm region to warm up
@@ -309,13 +311,17 @@ attr_list conn_attr_list;
     }    
     
     // send the contact info of shm region to target process
-    // first, send the length, then send the whole contact info as a blob
-    if(sendto(sock, contact_len, sizeof(int), 0, &dest_addr, 
-        sizeof(struct sockaddr_un)) == -1) {
-        perror(sendto);
-        exit(-1);
-    }
-    if(sendto(sock, region_contact, contact_len, 0, &dest_addr, 
+    // the message includes the length and the whole contact info as a blob
+    char send_buf[CONN_MSG_SIZE];
+    char *temp_ptr = send_buf;
+    memcpy(temp_ptr, &(shm_data->my_pid), sizeof(pid_t));
+    temp_ptr += sizeof(pid_t);
+    memcpy(temp_ptr, &region_size, sizeof(size_t));
+    temp_ptr += sizeof(size_t);
+    memcpy(temp_ptr, &contact_len, sizeof(int));
+    temp_ptr += sizeof(int);
+    memcpy(temp_ptr, region_contact, contact_len);
+    if(sendto(sock, send_buf, CONN_MSG_SIZE, 0, &dest_addr, 
         sizeof(struct sockaddr_un)) == -1) {
         perror(sendto);
         exit(-1);
@@ -473,11 +479,98 @@ libcmshm_data_available(void *vtrans, void *vinput)
     int input_fd = (long)vinput;
     shm_transport_data_ptr shm_td = (shm_transport_data_ptr) trans->trans_data;
     shm_conn_data_ptr shm_cd = shm_td->connections;
+    struct sockaddr_un src_addr;
+    int src_addr_len = sizeof(src_addr);
 
-    /* detect who is sending, and create a new 'connection' if it's new */
+    // receive the connection request message
+    char recv_buf[MSG_SIZE];
+    if(recvfrom(shm_td->socket_fd, recv_buf, MSG_SIZE, 0, 
+        (struct sockaddr *) &src_addr, src_addr_len) < 0) {
+        shm_td->svc->trace_out(cm, "CMShm Data_Available error in receiving connection msg");
+	perror("recvfrom");
+	exit(-1);        
+    }
 
+    // extract shm region contact info from the message
+    char *temp_ptr = recv_buf;
+    pid_t peer_pid = *(pid_t *) temp_ptr;
+    temp_ptr += sizeof(pid_t);
+    size_t region_size = *(size_t *) temp_ptr;
+    temp_ptr += sizeof(size_t);
+    int contact_info_len = *(int *) temp_ptr;
+    temp_ptr += sizeof(int);
+    void *contact_info = (void *) temp_ptr;
+    
+    // determine whether this peer process has been seen before
+    while(shm_cd) {
+        if(shm_cd->peer_pid == peer_pid) {
+            if(shm_cd->shm_region->creator_id == peer_id) { 
+                // the peer process has connected to this process already
+                // this should not happen since cm checks connection equalty 
+                // when peer process trying to initiate a new connection
+                shm_td->svc->trace_out(trans->cm, "CMShm Data_Available on existing connetion, pid %d\n", 
+                               peer_pid);
+                return;
+            }
+            else { 
+                // this process has initiated a connection with peer process before
+                // this should be viewed as a new connection
+            }
+        }
+        shm_cd = shm_cd->next;
+    }
 
+    if(!shm_cd) {
+        // locate and attach the shm region
+        df_shm_region_t shm_region = df_attach_shm_region (shm_td->shm_method, peer_pid,
+            contact_info, region_size, NULL);
+        if(!shm_region) {
+            fprintf(stderr, "Cannot attach shm region. %s:%d\n", __FILE__, __LINE__);
+            exit(-1);
+        }
 
+        // locate queues in shm region
+        uint64_t *sender_pid = (uint64_t *) shm_region->starting_addr;
+        uint64_t *send_q_start = ((uint64_t *) shm_region->starting_addr + 1);
+        uint64_t *recv_q_start = ((uint64_t *) shm_region->starting_addr + 2);
+
+        // setup local queue endpoints
+        // Note: the receiver is receving end of send queue and sending end of recv queue
+        df_queue_t send_q = (df_queue_t)((char *)shm_region->starting_addr + *send_q_start);
+        df_queue_ep_t recv_ep = df_get_queue_receiver_ep(send_q);
+        df_queue_t recv_q = (df_queue_t)((char *)shm_region->starting_addr + *recv_q_start);
+        df_queue_ep_t send_ep = df_get_queue_sender_ep(recv_q);
+
+	CMConnection conn;
+	attr_list conn_attr_list;
+	shm_cd = create_shm_conn_data(shm_td->svc);
+	conn_attr_list = create_attr_list();
+	conn = shm_td->svc->connection_create(trans, shm_cd, conn_attr_list);
+
+        shm_cd->dest_addr = src_addr; // will ignore
+        shm_cd->filename = strdup("");// will ignore
+        shm_cd->peer_pid = peer_pid;
+        shm_cd->shm_region = shm_region;
+        shm_cd->send_ep = send_ep;
+        shm_cd->recv_ep = recv_ep;
+	shm_cd->shm_td = shm_td;
+	shm_cd->conn = conn;
+	shm_cd->attrs = conn_attr_list;
+	shm_cd->next = NULL;
+	add_connection(shm_td, shm_cd);
+
+        add_attr(conn_attr_list, CM_SHM_FILENAME, Attr_String,
+            (attr_value) strdup(shm_cd->filename));
+        add_attr(conn_attr_list, CM_SHM_PID, Attr_Int4,
+            (attr_value) (long)shm_cd->peer_pid);
+        add_attr(conn_attr_list, CM_SHM_NUM_SLOTS, Attr_Int4,
+            (attr_value) (long)shm_cd->send_ep->queue->max_num_slots);
+        add_attr(conn_attr_list, CM_SHM_MAX_PAYLOAD, Attr_Int4,
+            (attr_value) (long)shm_cd->send_ep->queue->max_payload_size);
+
+	shm_td->svc->trace_out(trans->cm, "UDP data available on new connetion, peer pid %u\n", 
+			   peer_pid);
+    }
 }
 
 void *
@@ -617,7 +710,7 @@ attr_list listen_info;
     add_attr(listen_list, CM_TRANSPORT, Attr_String,
          (attr_value) strdup("shm"));
 
-    if(is_threaded == 0) {     
+    if(is_threaded == 1) {     
         svc->trace_out(cm, "CMshm Adding libcmshm_data_available as action on fd %d", socket_fd);
         svc->fd_add_select(cm, socket_fd, libcmshm_data_available,
                    (void *) trans, (void *) (long)socket_fd);
