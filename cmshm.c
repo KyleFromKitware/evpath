@@ -261,12 +261,13 @@ attr_list conn_attr_list;
     // creator pid (8 byte)
     // starting offset to the starting address of send queue (8 byte)
     // starting offset to the starting address of recv queue (8 byte)
+    // peer pid (8 byte) (will be filled by peer process to notify connection establishment)
     // send queue (starting address cacheline aligned)
     // recv queue (starting address cacheline aligned)
     char *ptr = (char *) shm_region->starting_addr; // start of region, should be page-aligned
     *((uint64_t *) ptr) = (uint64_t) shm_region->creator_id;
     ptr += sizeof(uint64_t);
-    char *send_q_start = (char *) shm_region->starting_addr + 3 * sizeof(uint64_t);
+    char *send_q_start = (char *) shm_region->starting_addr + 4 * sizeof(uint64_t);
     if(send_q_start % CACHE_LINE_SIZE) {
         send_q_start += CACHE_LINE_SIZE - (send_q_start % CACHE_LINE_SIZE);
     }
@@ -277,7 +278,10 @@ attr_list conn_attr_list;
         recv_q_start += CACHE_LINE_SIZE - (recv_q_start % CACHE_LINE_SIZE);
     }
     *((uint64_t *) ptr) = (uint64_t) (recv_q_start - (char *) shm_region->starting_addr);
-    
+    ptr += sizeof(uint64_t);
+    *((uint64_t *) ptr) = 0; // we are not goint to connect to process 0
+    uint64_t *peer_response = ptr;
+
     // send queue is for this process to send data to target process
     df_queue_t send_q = df_create_queue (send_q_start, num_queue_slots, max_payload_size);
     df_queue_ep_t send_ep = df_get_queue_sender_ep(send_q);
@@ -304,12 +308,6 @@ attr_list conn_attr_list;
     strncpy (dest_addr.sun_path, filename, sizeof(dest_addr.sun_path));
     dest_addr.sun_path[sizeof (dest_addr.sun_path) - 1] = '\0';    
 
-    // connect to the target process
-    if (connect(sock, &dest_addr, addr_len) < 0) {
-        perror("connect");
-        exit(-1);
-    }    
-    
     // send the contact info of shm region to target process
     // the message includes the length and the whole contact info as a blob
     char send_buf[CONN_MSG_SIZE];
@@ -328,6 +326,12 @@ attr_list conn_attr_list;
     }
     close(sock);
     
+    // now wait for peer process to attach the region
+    while(*peer_response != (uint64_t)peer_pid) {
+        // TODO: busy wait
+        pthread_yield();
+    }
+
     free(region_contact);
     shm_conn_data->shm_region = shm_region;
     shm_conn_data->send_ep = send_ep;
@@ -533,6 +537,7 @@ libcmshm_data_available(void *vtrans, void *vinput)
         uint64_t *sender_pid = (uint64_t *) shm_region->starting_addr;
         uint64_t *send_q_start = ((uint64_t *) shm_region->starting_addr + 1);
         uint64_t *recv_q_start = ((uint64_t *) shm_region->starting_addr + 2);
+        uint64_t *peer_response = ((uint64_t *) shm_region->starting_addr + 3);
 
         // setup local queue endpoints
         // Note: the receiver is receving end of send queue and sending end of recv queue
@@ -567,6 +572,9 @@ libcmshm_data_available(void *vtrans, void *vinput)
             (attr_value) (long)shm_cd->send_ep->queue->max_num_slots);
         add_attr(conn_attr_list, CM_SHM_MAX_PAYLOAD, Attr_Int4,
             (attr_value) (long)shm_cd->send_ep->queue->max_payload_size);
+
+        // notify the peer process that connection has been established
+        *peer_response = (uint64_t) shm_td->my_pid;
 
 	shm_td->svc->trace_out(trans->cm, "UDP data available on new connetion, peer pid %u\n", 
 			   peer_pid);
