@@ -518,7 +518,7 @@ libcmshm_data_available(void *vtrans, void *vinput)
             }
             else { 
                 // this process has initiated a connection with peer process before
-                // this should be viewed as a new connection
+                // this should be viewed as a different connection
             }
         }
         shm_cd = shm_cd->next;
@@ -592,7 +592,9 @@ listen_thread_func(void *vlsp)
     int err;
     
     // first, wait until the listening socket is established
-    while(shm_td->listen_thread_cmd == 0) { } 
+    while(shm_td->listen_thread_cmd == 0) { 
+        pthread_yield();
+    } 
 
     struct shm_connection_data *connections = shm_td->connections;
         
