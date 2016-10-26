@@ -54,6 +54,7 @@ extern int CMtrace_init(CManager cm, CMTraceType trace_type)
     CMtrace_val[EVerbose] = (getenv("EVerbose") != NULL);
     CMtrace_val[CMIBTransportVerbose] = (getenv("CMIBTransportVerbose") != NULL);    
     CMtrace_val[EVdfgVerbose] = (getenv("EVdfgVerbose") != NULL);
+    CMtrace_val[weirVerbose] = (getenv("weirVerbose") != NULL);
     CMtrace_timing = (getenv("CMTraceTiming") != NULL);
     CMtrace_PID = (getenv("CMTracePID") != NULL);
     if ((str = getenv("EVWarning")) != NULL) {
@@ -99,6 +100,7 @@ extern int CMtrace_init(CManager cm, CMTraceType trace_type)
 	    if (CMtrace_val[EVWarning]) fprintf(cm->CMTrace_file, "EVWarning, ");
 	    if (CMtrace_val[CMIBTransportVerbose]) fprintf(cm->CMTrace_file, "CMIBTransportVerbose, ");
 	    if (CMtrace_val[EVdfgVerbose]) fprintf(cm->CMTrace_file, "EVdfgVerbose, ");
+            if (CMtrace_val[weirVerbose]) fprintf(cm->CMTrace_file, "weirVerbose, ");
 	    fprintf(cm->CMTrace_file, "\n");
 	}
     } else {

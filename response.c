@@ -385,6 +385,66 @@ install_response_handler(CManager cm, int stone_id, char *response_spec,
 	}
 	return (void*)response;
     }
+    if (strncmp("Storage Action", str, strlen("Storage Action")) == 0) {
+	struct response_spec *response = malloc(sizeof(struct response_spec));
+	int list_count, j;
+	char *function;
+	FMStructDescList *struct_list;
+	int accept_anonymous = 0;
+
+	str += strlen("Storage Action") + 1;
+	sscanf(str, "  List Count %d\n", &list_count);
+	str = strchr(str, '\n') + 1;
+	struct_list = malloc(sizeof(struct_list[0]) * (list_count + 1));
+	for (j = 0; j < list_count; j++) {
+	    int format_count2, k;
+	    FMStructDescList in_list;
+	    sscanf(str, "Next format   Subformat Count %d\n", &format_count2);
+	    str = strchr(str, '\n') + 1;
+
+	    in_list = malloc(sizeof(in_list[0]) * (format_count2 + 1));
+	    for (k=0; k < format_count2; k++) {
+		str = parse_FMformat_from_string(str, &in_list[k]);
+	    }
+	    in_list[format_count2].format_name = NULL;
+	    in_list[format_count2].field_list = NULL;
+	    struct_list[j] = in_list;
+	    if (struct_list[j]->field_list == NULL) {  /* anonymous */
+		free(struct_list[j]->format_name);
+		free(in_list);
+		struct_list[j] = NULL;
+		list_count--;
+		j--;
+		accept_anonymous++;
+	    }
+	}
+	struct_list[list_count] = NULL;
+	function = malloc(strlen(str) + 1);
+	strcpy(function, str);
+	response->response_type = Response_Multityped;
+	response->u.multityped.struct_list = struct_list;
+	response->u.multityped.function = function;
+	response->u.multityped.client_data = local_data;
+	response->u.multityped.accept_anonymous = accept_anonymous;
+	response->u.multityped.reference_input_format_list =
+	    malloc((list_count +1) * sizeof(FMFormat));
+	for (j = 0; j < list_count; j++) {
+	    if ((struct_list[j])[0].format_name != NULL) {
+		response->u.multityped.reference_input_format_list[j] =
+		    EVregister_format_set(cm, struct_list[j]);
+	    }
+	}
+	if (ref_ptr) {
+	    FMFormat *formats = malloc((list_count + 1)*sizeof(FMFormat));
+	    int k = 0;
+	    for (k=0; k < list_count; k++) {
+		formats[k] = response->u.multityped.reference_input_format_list[k];
+	    }
+	    formats[list_count] = NULL;
+	    *ref_ptr = formats;
+	}
+	return (void*)response;
+    }
     printf("Unparsed action : %s\n", str);
     return NULL;
 }
@@ -544,6 +604,41 @@ INT_create_multityped_action_spec(FMStructDescList *input_format_lists, char *fu
     strcpy(&str[strlen(str)], function);
     return str;
 }
+
+extern char *
+INT_create_storage_action_spec(FMStructDescList *input_format_lists, char* function)
+{
+    
+    int list_count = 0;
+    //char none_word[4] = "None";
+    int l, i;
+    char *str;
+    while(input_format_lists && input_format_lists[list_count] != NULL)
+	list_count++;
+
+    str = malloc(50);
+    sprintf(str, "Storage Action   List Count %d\n", list_count);
+    //sprintf(str + strlen(str), "Contact Info: %s\n", (contact_point == NULL ? "None" : contact_point));
+
+
+    for (l = 0; l < list_count; l++) {
+	int format_count = 0;
+	FMStructDescList format_list = input_format_lists[l];
+	while(format_list && format_list[format_count].format_name != NULL)
+	    format_count++;
+	str = realloc(str, strlen(str) + 50);
+	sprintf(str + strlen(str), "Next format   Subformat Count %d\n",
+		format_count);
+	for (i = 0 ; i < format_count; i++) {
+	    str = add_FMfieldlist_to_string(str, &format_list[i]);
+	}
+    }
+
+    str = realloc(str, strlen(str) + strlen(function) + 1);
+    strcpy(&str[strlen(str)], function);
+    return str;
+}
+
 
 struct ev_state_data {
     CManager cm;

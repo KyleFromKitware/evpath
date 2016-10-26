@@ -1,0 +1,113 @@
+
+/*
+    if(curr_node->number_of_producers == 0)
+    {
+        int number_of_connections = 0;
+        int i = 0;
+
+	msg.number_of_connections = curr_node->number_of_consumers;
+	msg.tree_connections = malloc(sizeof(char *) * msg.number_of_connections);
+
+
+        for(i = 0; i < msg.number_of_connections; i++)
+        {
+            msg.tree_connections[i] = strdup(curr_node->consumers[i].str_contact)
+        }
+
+    }
+    else
+    {
+        int number_of_connections;
+        int i = 0;
+
+	msg.number_of_connections = curr_node->number_of_producers + curr_node->numbernumber_of_connections;
+	msg.tree_connections = malloc(sizeof(char *) * msg.number_of_connections);
+
+        msg.tree_connections[index++] = strdup(curr_leaf->parent->str_contact);
+
+        if(curr_leaf->child_left) 
+	    msg.tree_connections[index++] = strdup(curr_leaf->child_left->str_contact);
+
+        if(curr_leaf->child_right)
+	    msg.tree_connections[index++] = strdup(curr_leaf->child_right->str_contact);
+    }
+    */
+
+
+
+    /*
+	int depth = 1;
+	int rollover_point = 2;
+	int specific_tree_index = 0;
+
+	graphs[current_tree_index] = calloc(1, sizeof(graphs[0][0]));
+	graphs[current_tree_index]->str_contact = malloc(sizeof(char) * 75);
+	sprintf(graphs[current_tree_index]->str_contact, "%d:%s", curr->local_stone_ids[specific_tree_index],
+                                                                        curr->str_contact_names[specific_tree_index]);
+
+	specific_tree_index++;
+
+	while(specific_tree_index != curr->number_of_participants)
+	{
+	    int key;
+
+	    int row_index = specific_tree_index - rollover_point / 2;
+	    if((row_index % 2) == 1)
+		key = ~row_index;
+	    else
+		key = row_index;
+
+	    create_appropriate_leaf(depth, key, graphs[current_tree_index], curr, specific_tree_index);
+
+
+	    if(specific_tree_index == rollover_point)
+	    {
+		rollover_point = (1 + rollover_point) * 2;
+		depth++;
+	    }
+	    specific_tree_index++;
+	}	    
+
+	current_tree_index++;
+	curr = curr->next;
+    }
+    */
+
+
+static
+void create_appropriate_leaf(int depth, int depth_index, weir_graph_node_ptr tree, weir_group_info_ptr info, int info_index)
+{
+    int j;
+    weir_graph_node_ptr curr_leaf = tree;
+    for(j = depth - 1; j >= 0; j--)
+    {
+        int y = depth_index & (1<<j);
+        
+        if(y)
+	{
+	    if(curr_leaf->child_right == NULL)
+	    {
+		curr_leaf->child_right = calloc(1, sizeof(tree[0]));
+		curr_leaf->child_right->parent = curr_leaf;
+		curr_leaf->child_right->str_contact = malloc(sizeof(char) * 75);
+		sprintf(curr_leaf->child_right->str_contact, "%d:%s", info->local_stone_ids[info_index],
+                                                                        info->str_contact_names[info_index]);
+	    }
+	    else
+		curr_leaf = curr_leaf->child_right;
+	}
+        else
+	{
+	    if(curr_leaf->child_left == NULL)
+	    {
+		curr_leaf->child_left = calloc(1, sizeof(tree[0]));
+		curr_leaf->child_left->parent = curr_leaf;
+		curr_leaf->child_left->str_contact = malloc(sizeof(char) * 75);
+		sprintf(curr_leaf->child_left->str_contact, "%d:%s", info->local_stone_ids[info_index],
+                                                                        info->str_contact_names[info_index]);
+	    }
+	    else
+		curr_leaf = curr_leaf->child_left;
+	}
+    }
+}

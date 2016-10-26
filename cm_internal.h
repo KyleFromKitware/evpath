@@ -316,7 +316,7 @@ extern void IntCMConn_write_unlock(CMConnection cl, char *file,
 extern int CMConn_write_locked(CMConnection cl);
 
 typedef enum _CMTraceType {
-    CMAlwaysTrace, CMControlVerbose, CMConnectionVerbose, CMLowLevelVerbose, CMDataVerbose, CMTransportVerbose, CMFormatVerbose, CMFreeVerbose, CMAttrVerbose, CMBufferVerbose, EVerbose, EVWarning, CMIBTransportVerbose, EVdfgVerbose, 
+    CMAlwaysTrace, CMControlVerbose, CMConnectionVerbose, CMLowLevelVerbose, CMDataVerbose, CMTransportVerbose, CMFormatVerbose, CMFreeVerbose, CMAttrVerbose, CMBufferVerbose, EVerbose, EVWarning, CMIBTransportVerbose, EVdfgVerbose, weirVerbose,
     CMLastTraceType /* add before this one */
 } CMTraceType;
 
@@ -489,6 +489,9 @@ extern char *
 INT_create_transform_action_spec(FMStructDescList format_list, FMStructDescList out_format_list, char *function);
 extern char *
 INT_create_multityped_action_spec(FMStructDescList *input_format_lists, char *function);
+
+extern char *
+INT_create_storage_action_spec(FMStructDescList *input_format_lists, char *function);
 
 extern int INT_CMCondition_has_signaled(CManager cm, int condition);
 

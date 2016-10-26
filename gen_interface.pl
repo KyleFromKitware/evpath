@@ -334,7 +334,8 @@ sub mod_EVhandler {
     local ($/, *INPUT);
 	
     $cat_args = "";
-    $has_ev_dfg = 0;
+    $has_evdfg = 0;
+    $has_weir = 0;
     $cm_only = 0;
     foreach my $a(@ARGV) {
 	if ($a =~ "-CM_ONLY") {
@@ -346,6 +347,9 @@ sub mod_EVhandler {
 	if ($a =~ /ev_dfg/) {
 	    $has_evdfg = 1;
 	}
+        if ($a =~ /weir/) {
+            $has_weir = 1;
+        }
     }
     unless (open(INPUT, "cat $cat_args |")) {
 	die "sudden flaming death, no file: $cat_args\n";
@@ -433,7 +437,6 @@ for (@DECLS) {
 	$remote_enabled{$name} = 1;
     }
 }
-
 unless (open (INT, ">cm_interface.c")) { die "Failed to open cm_interface.c";}
 print INT<<EOF;
 /*
@@ -456,6 +459,10 @@ if ($has_evdfg) {
     print INT "#include \"ev_dfg.h\"\n";
     print INT "#include \"ev_dfg_internal.h\"\n";
 }
+if ($has_weir) {
+    print INT "#include \"Weir/weir.h\"\n";
+    print INT "#include \"Weir/weir_internal.h\"\n";
+}
 print INT<<EOF;
 #ifdef	__cplusplus
 extern "C" \{
@@ -475,6 +482,8 @@ EOF
 	undef $cmformat;
 	undef $evdfg;
 	undef $evdfg_stone;
+        undef $evstore_master;
+        undef $evstore_client;
 	foreach $arg (split ( ",", $arguments{$subr})) {
 	    $_ = $arg;
 	    if (/\W+(\w+)\W*$/) {
@@ -507,6 +516,12 @@ EOF
 	    if (/EVdfg_stone\W/) {
 		$evdfg_stone = $name;
 	    }
+            if (/weir_client\W/) {
+                $cmanager = $name. "->cm";
+            }
+            if (/weir_master\W/) {
+                $cmanager = $name. "->cm";
+            }
 	}
 
 	$_ = $return_type{$subr};

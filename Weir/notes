@@ -1,0 +1,2 @@
+check_all_nodes_participated CALLS create_storage_trees CALLS create_appropriate_leaf
+check_all_nodes_participated CALLs perform_deployment CALLS

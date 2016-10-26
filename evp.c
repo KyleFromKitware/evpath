@@ -875,7 +875,6 @@ dequeue_item(CManager cm, stone_type stone, queue_item *to_dequeue)
     queue_item *item = q->queue_head;
     event_item *event = NULL;
     
-    assert(CManager_locked(cm));
     if (to_dequeue == NULL) return event;
     event = to_dequeue->item;
     if (q->queue_head == to_dequeue) {
@@ -1711,6 +1710,9 @@ process_events_stone(CManager cm, int s, action_class c)
 	queue_item *next = item->next;
 	response_cache_element *resp;
 	response_cache_element *act = NULL;
+
+	if (stone->queue->queue_head == NULL) return 0;
+
 	if (item->handled) {
 	    item = next;
 	    continue;

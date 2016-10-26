@@ -118,7 +118,7 @@ add_library(EVPath
   cm_lock.c cm_perf.c cm_pbio.c cm_interface.c version.c
   cm_threadio.c cm_evol.c evp.c response.c metrics.c 
   dlloader.c ip_config.c chr_time.c
-  revp.c evp_compat.c thin_server.c evp_threads.c ev_dfg.c)
+  revp.c evp_compat.c thin_server.c evp_threads.c ev_dfg.c Weir/weir.c)
 add_library(EVPath::EVPath ALIAS EVPath)
 add_library(evpath ALIAS EVPath)
 target_include_directories(EVPath PUBLIC
@@ -338,11 +338,13 @@ add_custom_command(
     ${CMAKE_CURRENT_SOURCE_DIR}/evpath.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ev_dfg.h
     ${CMAKE_CURRENT_SOURCE_DIR}/cm_schedule.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/Weir/weir.h
   DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/gen_interface.pl
     ${CMAKE_CURRENT_SOURCE_DIR}/evpath.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ev_dfg.h
     ${CMAKE_CURRENT_SOURCE_DIR}/cm_schedule.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/Weir/weir.h
 )
 
 if(Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)

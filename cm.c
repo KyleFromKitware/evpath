@@ -2512,13 +2512,18 @@ INT_CMConnection_failed(CMConnection conn)
      INT_CMConnection_add_reference(conn);
      {
 	 CMbuffer local = NULL;
+	 CMHandlerFunc handler = cm_format->handler;
+	 void *client_data = cm_format->client_data;
 	 if ((cm_buffer == NULL) && (decode_buffer == NULL)) {
 	     local = fill_cmbuffer(cm, buffer, length);
 	     buffer = local->buffer;
 	 }
 	 CManager_unlock(cm);
-	 cm_format->handler(cm, conn, decode_buffer, cm_format->client_data,
-			    attrs);
+	 /* 
+	  * once we drop the lock, some things like 'cm_format' may become
+	  * invalid because of being realloc'd.  We saved what we need above.
+	  */
+	 handler(cm, conn, decode_buffer, client_data, attrs);
 	 CManager_lock(cm);
 	 if (local) cm_return_data_buf(cm, local);
 	 CMtrace_out(cm, CMFreeVerbose, "CM - delete reference connection %p - handler\n", conn);

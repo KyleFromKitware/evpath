@@ -2195,6 +2195,11 @@ create_transform_action_spec(FMStructDescList format_list, FMStructDescList out_
 extern char *
 create_multityped_action_spec(FMStructDescList *input_format_lists, char *function);
 
+//Add info here
+/*NOLOCK*/
+extern char *
+create_storage_action_spec(FMStructDescList *input_format_lists, char *function);
+
 #ifdef __COD__H__
 /*!
  * Add a set of routines that will be visible in COD.

@@ -1,8 +1,10 @@
 set (TESTS evtest bulktest http_test filter_test router_test router_test2 no_type_router_test filter2_test transform_test auto_test extract_test submit_test thin_test rawtest rawtest2 multi_thread multiq_test split_test executing_stone_test)
 set (NO_INST_PROGS thin_client)
+set (NEW_TESTS storage_stone_test)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+ENABLE_TESTING()
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/evtests.tsts "" )
 foreach(T ${TESTS})
@@ -15,6 +17,13 @@ target_link_libraries(rawtest ffs::ffs)
 target_link_libraries(rawtest2 ffs::ffs)
 
 add_test(NAME evtest_SELF COMMAND evtest)
+
+foreach (TEST ${NEW_TESTS} )
+  add_executable(${TEST} ${TEST}.c test_support.c)
+  target_link_libraries(${TEST} evpath ${BASE_LIBS})
+  add_test(${TEST} "${TEST}")
+  file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/evtests.tsts "${TEST}\n" )
+endforeach()
 set_property(TEST evtest_SELF PROPERTY
   ENVIRONMENT "CMSelfFormats=1"
 )
@@ -35,7 +44,8 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 if(TEST_INSTALL_DIRECTORY) 
-  install(TARGETS ${TESTS} thin_client DESTINATION "${TEST_INSTALL_DIRECTORY}")
+  install(TARGETS ${TESTS} ${NEW_TESTS} thin_client DESTINATION "${TEST_INSTALL_DIRECTORY}")
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/evtests.tsts
     DESTINATION "${TEST_INSTALL_DIRECTORY}")
 endif() 
+
